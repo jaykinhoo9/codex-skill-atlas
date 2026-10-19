@@ -16,14 +16,23 @@ import sqlite3
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from socketserver import TCPServer
 from urllib.parse import urlparse, parse_qs
 from skill_trash import SkillTrash, TrashError
 
 APP = Path(__file__).resolve().parent
-VERSION = '1.0.0'
+VERSION = '1.0.1'
 DETECTOR_VERSION = "3"
 SOURCES = {"builtin": "Codex 内置", "local": "本地 / 自建", "installed": "下载安装", "plugin": "插件技能", "project": "项目技能"}
 SKIP = {"node_modules", ".git", "__pycache__", ".venv", "venv", "references", "assets", "scripts", "tests", "test", "examples", "templates"}
+
+
+class LocalHTTPServer(ThreadingHTTPServer):
+    def server_bind(self):
+        # HTTPServer resolves the host's FQDN while binding. A loopback-only
+        # dashboard needs no DNS, which can stall on offline or CI machines.
+        TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
 
 
 def read_json(path, default=None):
@@ -597,11 +606,11 @@ def main():
     atlas = Atlas(args.codex_home, args.agents_home, args.skills_root, cache_dir=data_dir)
     atlas.instance_key = args.instance_key
     try:
-        server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(atlas))
+        server = LocalHTTPServer(("127.0.0.1", args.port), make_handler(atlas))
     except OSError as exc:
         if not args.fallback_port or exc.errno != errno.EADDRINUSE:
             raise
-        server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(atlas))
+        server = LocalHTTPServer(("127.0.0.1", 0), make_handler(atlas))
     url = f'http://127.0.0.1:{server.server_port}'
     if args.ready_file:
         temporary = args.ready_file.with_suffix('.tmp')

@@ -7,11 +7,10 @@ import threading
 import time
 import unittest
 from http.client import HTTPConnection
-from http.server import ThreadingHTTPServer
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/"skills/codex-skill-atlas/app"))
-from server import Atlas, Catalog, make_handler
+from server import Atlas, Catalog, LocalHTTPServer, make_handler
 from skill_trash import SkillTrash, TrashError, RETENTION_MS
 
 
@@ -363,7 +362,7 @@ class SkillTrashTests(unittest.TestCase):
         atlas = Atlas(self.home, self.agents, cache_dir=self.base/'cache')
         atlas.catalog = self.catalog
         atlas.publish(dict(atlas.snapshot))
-        server = ThreadingHTTPServer(('127.0.0.1', 0), make_handler(atlas))
+        server = LocalHTTPServer(('127.0.0.1', 0), make_handler(atlas))
         worker = threading.Thread(target=server.serve_forever, daemon=True);worker.start()
         origin = f'http://127.0.0.1:{server.server_port}'
         def post(route, body, request_origin=origin):
@@ -412,7 +411,7 @@ class SkillTrashTests(unittest.TestCase):
         ids = [self.id_for('demo'), self.id_for('second')]
         links = [{'skillId': sid, 'sessionId': 'session-id', 'count': 1} for sid in ids]
         atlas.publish({**atlas.snapshot, 'sessions': sessions, 'links': links})
-        server = ThreadingHTTPServer(('127.0.0.1', 0), make_handler(atlas))
+        server = LocalHTTPServer(('127.0.0.1', 0), make_handler(atlas))
         worker = threading.Thread(target=server.serve_forever, daemon=True);worker.start()
         origin = f'http://127.0.0.1:{server.server_port}'
         def post(route, body, request_origin=origin):

@@ -60,7 +60,7 @@ async function sync(manual=false){
     renderActivity();
     renderTrash();
     if(manual)toast('已同步，正在重新扫描技能目录');
-  }catch(e){$('#sync-status').textContent='本地服务连接中断，正在重试';$('#status-dot').style.background='#c3a063';$('#warning').hidden=false;$('#warning').textContent='未能连接本地服务。请运行项目中的“启动 Skill Atlas.command”，页面会自动重连。';}
+  }catch(e){$('#sync-status').textContent='本地服务连接中断，正在重试';$('#status-dot').style.background='#c3a063';$('#warning').hidden=false;$('#warning').textContent='未能连接本地服务。请让 Agent 重新启动技能看板，或运行本 Skill 的 scripts/launch.py；页面会自动重连。';}
   finally{fetching=false;}
 }
 

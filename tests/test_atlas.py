@@ -7,9 +7,19 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
+from http.server import BaseHTTPRequestHandler
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/"skills/codex-skill-atlas/app"))
-from server import Atlas, Catalog, metadata, observed_reads
+from server import Atlas, Catalog, LocalHTTPServer, metadata, observed_reads
+
+
+class LocalServerTests(unittest.TestCase):
+    def test_loopback_startup_does_not_require_dns(self):
+        with patch('socket.getfqdn', side_effect=OSError('DNS unavailable')):
+            with LocalHTTPServer(('127.0.0.1', 0), BaseHTTPRequestHandler) as server:
+                self.assertEqual(server.server_name, '127.0.0.1')
+                self.assertGreater(server.server_port, 0)
 
 
 class SkillDetectionTests(unittest.TestCase):

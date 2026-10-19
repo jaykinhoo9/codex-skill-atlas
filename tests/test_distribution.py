@@ -5,6 +5,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from urllib.request import build_opener, ProxyHandler
 import zipfile
@@ -33,14 +34,24 @@ class DistributionTests(unittest.TestCase):
                 port = occupied.getsockname()[1]
                 command += ['--port', str(port)]
                 try:
-                    first = json.loads(subprocess.check_output(command, text=True))
+                    launched = subprocess.run(command, capture_output=True, text=True, timeout=25)
+                    if launched.returncode:
+                        log = data/'server.log'
+                        self.fail(launched.stderr+'\n'+(log.read_text() if log.exists() else 'No server log'))
+                    first = json.loads(launched.stdout)
                     self.assertEqual(first['status'], 'started')
                     self.assertNotEqual(first['url'], f'http://127.0.0.1:{port}')
                     second = json.loads(subprocess.check_output(command, text=True))
                     self.assertEqual(second['status'], 'reused')
                     self.assertEqual(first['pid'], second['pid'])
-                    with build_opener(ProxyHandler({})).open(first['url']+'/api/graph') as response:
-                        graph = json.load(response)
+                    # Health means the UI is reachable; inventory indexes asynchronously.
+                    deadline = time.monotonic()+10
+                    while True:
+                        with build_opener(ProxyHandler({})).open(first['url']+'/api/graph', timeout=2) as response:
+                            graph = json.load(response)
+                        if graph['skills'] or time.monotonic() >= deadline:
+                            break
+                        time.sleep(.05)
                     self.assertEqual([s['name'] for s in graph['skills'] if s['source'] == 'local'], ['demo'])
                     self.assertEqual(graph['sessions'], [])
                     self.assertTrue((data/'observations.sqlite').exists())

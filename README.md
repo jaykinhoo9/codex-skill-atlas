@@ -28,7 +28,7 @@ python3 scripts/install.py
 
 ### 下载 ZIP
 
-在 [Releases](https://github.com/jaykinhoo9/codex-skill-atlas/releases) 下载 `codex-skill-atlas-v1.0.0.zip`，把其中的 `codex-skill-atlas` 文件夹放入 Agent 的 skills 目录。发行包只包含这个工具自身的代码、Skill 指令、元数据与许可证。
+在 [Releases](https://github.com/jaykinhoo9/codex-skill-atlas/releases) 下载 `codex-skill-atlas-v1.0.1.zip`，把其中的 `codex-skill-atlas` 文件夹放入 Agent 的 skills 目录。发行包只包含这个工具自身的代码、Skill 指令、元数据与许可证。
 
 ## 启动浏览器页面
 
