@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Skill Atlas · Codex 技能图谱</title>
+  <meta name="description" content="查看本机 Codex 技能，探索技能与会话之间的真实连接。">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">✳</span><span>Skill Atlas</span><span class="brand-divider"></span><span class="brand-sub">CODEX 技能图谱</span></div>
+    <div class="top-actions"><span class="local-tag">◉ 本地工作空间</span><button id="live-button" class="live-button" title="暂停或恢复页面实时同步"><i class="live-dot"></i><span>实时同步</span></button></div>
+  </header>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="workspace-label">YOUR WORKSPACE</div>
+      <div class="sidebar-section-title">技能来源 <span id="source-total">—</span></div>
+      <div id="source-filters" class="source-filters"></div>
+      <div class="management-filters" aria-label="技能管理">
+        <button class="source-filter" id="low-usage-filter" data-source="low" title="累计使用少于 3 次，包含未使用的技能"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 12V9m5 3V6m5 6V3"/></svg>低频使用<span class="filter-count" id="low-usage-count">—</span></button>
+        <button class="source-filter" id="trash-filter" data-section="trash"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h11m-9.5 0 .5 9h7l.5-9M6 4.5v-2h4v2M6.5 7v4m3-4v4"/></svg>回收站<span class="filter-count" id="trash-count">0</span></button>
+      </div>
+      <div class="sidebar-section-title session-heading">会话 <span id="session-total">—</span></div>
+      <div class="session-tabs"><button data-session-tab="recent" class="selected">最近</button><button data-session-tab="running">运行中 <span id="running-badge">0</span></button></div>
+      <div id="session-list" class="session-list"><div class="muted empty-small">正在连接本机 Codex…</div></div>
+      <section class="sidebar-activity" aria-label="最近调用">
+        <div class="sidebar-section-title activity-heading">最近调用 <span>ACTIVITY</span></div>
+        <div id="activity-list" class="activity-list"><p class="empty-small muted">正在读取调用记录…</p></div>
+      </section>
+    </aside>
+    <main class="main" aria-label="技能总览">
+      <section class="stats" aria-label="工作空间统计">
+        <div class="stat" role="group" aria-labelledby="skills-label">
+          <strong class="stat-value" id="stat-skills">—</strong>
+          <div class="stat-copy"><span class="stat-label" id="skills-label">技能库</span><small>已发现的本机技能</small></div>
+          <svg class="stat-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="3.5" width="6" height="6" rx="1.5"/><rect x="14.5" y="3.5" width="6" height="6" rx="1.5"/><rect x="3.5" y="14.5" width="6" height="6" rx="1.5"/><rect x="14.5" y="14.5" width="6" height="6" rx="1.5"/></svg>
+        </div>
+        <div class="stat stat--running" role="group" aria-labelledby="running-label">
+          <strong class="stat-value" id="stat-running">—</strong>
+          <div class="stat-copy"><span class="stat-label" id="running-label">运行中会话</span><small id="stat-running-note">等待会话状态</small></div>
+          <svg class="stat-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m8.5 13 2-4 3 6 2-4"/></svg>
+        </div>
+        <div class="stat" role="group" aria-labelledby="links-label">
+          <strong class="stat-value" id="stat-links">—</strong>
+          <div class="stat-copy"><span class="stat-label" id="links-label">技能连接</span><small>来自真实调用记录</small></div>
+          <svg class="stat-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m9 15 6-6m-5.5-1.5 2-2a4.2 4.2 0 0 1 6 6l-2 2m-1 3-2 2a4.2 4.2 0 0 1-6-6l2-2"/></svg>
+        </div>
+        <div class="stat" role="group" aria-labelledby="used-label">
+          <strong class="stat-value" id="stat-used">—</strong>
+          <div class="stat-copy"><span class="stat-label" id="used-label">曾使用技能</span><small id="index-progress">正在建立本地索引</small></div>
+          <svg class="stat-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 16V9m7 7V5m7 11v-5M3.5 20h17"/></svg>
+        </div>
+      </section>
+      <div id="warning" class="warning" hidden></div>
+      <section class="explorer inspector-closed">
+        <div class="explorer-toolbar">
+          <div class="view-tabs"><button class="selected" data-view="graph"><span>⌘</span> 关系图谱</button><button data-view="list"><span>☷</span> 技能列表</button></div>
+          <div class="toolbar-right"><label class="search"><span>⌕</span><input id="search" placeholder="搜索技能、会话…" aria-label="搜索技能和会话"><kbd>⌘ K</kbd></label><button id="clear-search" class="icon-button" title="清空搜索" hidden>×</button><button id="focus-button" class="icon-button" title="展开图谱" aria-label="展开图谱" aria-pressed="false">⛶</button><button id="inspector-toggle" class="icon-button" title="展开或收起详情" aria-label="展开或收起详情">◫</button></div>
+        </div>
+        <div class="explorer-content">
+          <div class="visual-pane">
+            <div class="graph-meta">
+              <div><span class="graph-live-dot"></span><strong id="graph-title">全部技能</strong><span id="visible-count">正在加载</span></div>
+              <div class="scope-picker">
+                <button id="scope" class="scope-trigger" type="button" aria-label="会话显示范围：最近会话" aria-haspopup="menu" aria-expanded="false" aria-controls="scope-menu"><span id="scope-label">最近会话</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>
+                <div id="scope-menu" class="scope-menu" role="menu" aria-label="会话显示范围" hidden>
+                  <div class="scope-menu-caption" aria-hidden="true">会话显示范围</div>
+                  <button type="button" role="menuitemradio" aria-checked="true" tabindex="-1" data-scope="recent"><span>最近会话</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8 3 3 6-6"/></svg></button>
+                  <button type="button" role="menuitemradio" aria-checked="false" tabindex="-1" data-scope="running"><span>仅运行中会话</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8 3 3 6-6"/></svg></button>
+                  <button type="button" role="menuitemradio" aria-checked="false" tabindex="-1" data-scope="all"><span>全部本机会话</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8 3 3 6-6"/></svg></button>
+                  <button type="button" role="menuitemradio" aria-checked="false" tabindex="-1" data-scope="skills"><span>仅显示技能</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8 3 3 6-6"/></svg></button>
+                </div>
+              </div>
+            </div>
+            <div id="graph-container"><canvas id="graph" tabindex="0" aria-label="技能关系图，按住空格拖动画布，拖动空白处框选节点；切换技能列表可用键盘浏览"></canvas><div id="selection-rectangle" hidden aria-hidden="true"></div><div id="selection-status" hidden><span id="selection-count" role="status" aria-live="polite"></span><button id="delete-selection" type="button" title="仅删除选中的技能，会话会保留" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h11m-9.5 0 .5 9h7l.5-9M6 4.5v-2h4v2M6.5 7v4m3-4v4"/></svg>删除技能</button><button id="clear-selection" aria-label="取消框选" title="取消框选（Esc）">×</button></div><div id="tooltip" hidden></div><div id="graph-empty" class="graph-empty" hidden>没有匹配的技能或会话<button id="reset-filters">清除筛选</button></div><div class="zoom-tools"><button id="zoom-in" aria-label="放大" title="放大">+</button><span id="zoom-level">100%</span><button id="zoom-out" aria-label="缩小" title="缩小">−</button><i></i><button id="fit-button" aria-label="适应画布" title="适应画布">⛶</button></div></div>
+            <div id="skills-list" class="skills-grid" hidden></div>
+          </div>
+          <aside id="inspector" class="inspector" aria-label="详情面板"><div id="detail-content"></div></aside>
+        </div>
+      </section>
+      <section id="trash-panel" class="trash-panel" aria-labelledby="trash-heading" hidden>
+        <header class="trash-header"><div><div class="trash-eyebrow">RECYCLE BIN</div><h1 id="trash-heading">回收站 <span id="trash-visible-count">0</span></h1></div><label class="search"><span>⌕</span><input id="trash-search" placeholder="搜索已删除的技能…" aria-label="搜索回收站"></label></header>
+        <div class="trash-policy"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M10 5.5v5l3 1.5"/></svg><span>删除后保留 <strong>30 天</strong>，期间可恢复。到期后自动永久删除。</span></div>
+        <p id="trash-error" class="trash-error" role="alert" hidden></p>
+        <div id="trash-list" class="trash-list"></div>
+      </section>
+      <footer class="bottom-status"><span><i id="status-dot"></i><span id="sync-status">连接本地数据源…</span></span><span>LOCAL FIRST <span class="footer-plus">+</span> BUILT FOR CODEX</span></footer>
+    </main>
+  </div>
+  <section id="source-palette" class="source-palette" role="dialog" aria-modal="false" aria-labelledby="color-title" hidden>
+    <header class="color-header"><div><span class="color-eyebrow">来源颜色</span><h2 id="color-title"></h2></div><button id="color-close" type="button" aria-label="关闭颜色面板">×</button></header>
+    <div class="color-section-label">预设颜色</div>
+    <div id="color-presets" class="color-presets" role="group" aria-label="预设颜色"></div>
+    <div class="color-section-label color-custom-label">自定义颜色</div>
+    <div id="color-plane" class="color-plane" role="group" tabindex="0" aria-label="自定义色盘"><i id="color-thumb" class="color-thumb" aria-hidden="true"></i></div>
+    <input id="color-hue" class="color-hue" type="range" min="0" max="360" step="1" aria-label="色相">
+    <div class="color-value-row"><input id="color-native" class="color-native" type="color" aria-label="打开系统色盘" title="打开系统色盘"><label class="color-hex-label"><span>HEX</span><input id="color-hex" type="text" maxlength="7" spellcheck="false" autocomplete="off" aria-label="十六进制颜色值" aria-describedby="color-error" placeholder="#568AAF"></label></div>
+    <p id="color-error" class="color-error" role="alert" hidden>请输入 3 位或 6 位 HEX 色值。</p>
+    <footer class="color-footer"><span>即时生效 · 自动保存</span><button id="color-reset" type="button">恢复默认</button></footer>
+  </section>
+  <dialog id="delete-dialog" class="delete-dialog" aria-labelledby="delete-title" aria-describedby="delete-description">
+    <div class="delete-eyebrow">SKILL MANAGEMENT</div>
+    <h2 id="delete-title">删除技能</h2>
+    <p id="delete-description">确认后移入回收站，30 天内可恢复，到期后永久删除。</p>
+    <div id="delete-skill-name" class="delete-skill-name"></div>
+    <div id="delete-scope" class="delete-scope"></div>
+    <p id="delete-error" class="delete-error" role="alert" hidden></p>
+    <div class="delete-dialog-actions"><button id="delete-cancel" type="button" autofocus>取消</button><button id="delete-confirm" class="delete-confirm" type="button" disabled>确认删除</button></div>
+  </dialog>
+  <div id="recovery-notice" class="recovery-notice" role="status" hidden><div><strong id="recovery-message"></strong><small id="recovery-path"></small></div><button id="undo-delete" type="button">撤销</button><button id="dismiss-recovery" type="button" aria-label="关闭删除提示">×</button></div>
+  <div id="toast" role="status" hidden></div>
+  <script src="/source-colors.js"></script>
+  <script src="/graph-input.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

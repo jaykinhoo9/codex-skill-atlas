@@ -1,0 +1,4 @@
+interface:
+  display_name: "Skill Atlas · 技能图谱"
+  short_description: "在浏览器查看本机技能来源、使用频率、会话连线与可恢复的技能回收站"
+  default_prompt: "使用 $codex-skill-atlas 启动我的本地技能看板，并在浏览器中打开。"

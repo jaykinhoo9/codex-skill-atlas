@@ -1,0 +1,22 @@
+# Runtime/private data never belongs in source control.
+.local/
+**/skill-atlas/
+__pycache__/
+*.py[cod]
+*.sqlite*
+*.db*
+*.log
+*.pid
+.env
+.env.*
+.DS_Store
+trash/
+backups/
+server.json
+server.tmp
+launch.lock
+preview*.png
+preview*.jpg
+node_modules/
+.venv/
+dist/

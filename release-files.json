@@ -1,0 +1,32 @@
+{
+  "version": "1.0.0",
+  "skillFiles": [
+    "SKILL.md",
+    "LICENSE",
+    "agents/openai.yaml",
+    "scripts/launch.py",
+    "app/server.py",
+    "app/skill_trash.py",
+    "app/web/index.html",
+    "app/web/style.css",
+    "app/web/app.js",
+    "app/web/graph-input.js",
+    "app/web/source-colors.js",
+    "app/web/favicon.svg"
+  ],
+  "repositoryFiles": [
+    ".gitignore",
+    ".github/workflows/ci.yml",
+    "README.md",
+    "LICENSE",
+    "release-files.json",
+    "scripts/install.py",
+    "scripts/check_release.py",
+    "scripts/build_release.py",
+    "tests/test_atlas.py",
+    "tests/test_skill_trash.py",
+    "tests/test_graph_input.cjs",
+    "tests/test_source_colors.cjs",
+    "tests/test_distribution.py"
+  ]
+}
