@@ -1,5 +1,5 @@
 {
-  "version": "1.0.1",
+  "version": "1.1.0",
   "skillFiles": [
     "SKILL.md",
     "LICENSE",
@@ -12,7 +12,9 @@
     "app/web/app.js",
     "app/web/graph-input.js",
     "app/web/source-colors.js",
-    "app/web/favicon.svg"
+    "app/web/favicon.svg",
+    "app/platform_support.py",
+    "app/windows_reads.py"
   ],
   "repositoryFiles": [
     ".gitignore",
@@ -27,6 +29,7 @@
     "tests/test_skill_trash.py",
     "tests/test_graph_input.cjs",
     "tests/test_source_colors.cjs",
-    "tests/test_distribution.py"
+    "tests/test_distribution.py",
+    "tests/test_platform.py"
   ]
 }

@@ -18,7 +18,8 @@ LAUNCH = SKILL/'scripts/launch.py'
 class DistributionTests(unittest.TestCase):
     def test_installed_skill_launch_reuse_port_fallback_and_stop(self):
         with tempfile.TemporaryDirectory() as tmp:
-            base = Path(tmp)
+            base = Path(tmp)/'中文 workspace'
+            base.mkdir()
             install = base/'installed skills/codex-skill-atlas'
             subprocess.run([sys.executable, str(ROOT/'scripts/install.py'), '--dest', str(install)], check=True, capture_output=True)
             self.assertTrue((install/'SKILL.md').is_file())
@@ -37,7 +38,7 @@ class DistributionTests(unittest.TestCase):
                     launched = subprocess.run(command, capture_output=True, text=True, timeout=25)
                     if launched.returncode:
                         log = data/'server.log'
-                        self.fail(launched.stderr+'\n'+(log.read_text() if log.exists() else 'No server log'))
+                        self.fail(launched.stderr+'\n'+(log.read_text(encoding='utf-8') if log.exists() else 'No server log'))
                     first = json.loads(launched.stdout)
                     self.assertEqual(first['status'], 'started')
                     self.assertNotEqual(first['url'], f'http://127.0.0.1:{port}')

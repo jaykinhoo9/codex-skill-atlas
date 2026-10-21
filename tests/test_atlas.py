@@ -47,7 +47,8 @@ class SkillDetectionTests(unittest.TestCase):
         self.assertEqual(len(self.detect('/bin/bash -lc '+shlex.quote(command))),1)
 
     def test_compound_read(self):
-        self.assertEqual(len(self.detect('pwd && head -80 '+shlex.quote(str(self.skill)))),1)
+        command = 'pwd && head -80 '+shlex.quote(str(self.skill))
+        self.assertEqual(len(self.detect('/bin/bash -lc '+shlex.quote(command))),1)
 
     def test_relative_path(self):
         self.assertEqual(len(self.detect("cat 'skills/test skill/SKILL.md'")),1)

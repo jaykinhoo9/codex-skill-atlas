@@ -5,16 +5,24 @@ description: 启动本地 Codex 技能图谱，在浏览器中查看本机 Skill
 
 # Codex Skill Atlas
 
-提供已实现的浏览器看板，直接启动随包附带的程序，不需要重新生成网页、安装 npm 依赖或部署到公网。支持 macOS / Linux、Python 3.9+；数据来自当前运行机器，无法读取其他主机或云端会话。
+提供已实现的浏览器看板，直接启动随包附带的程序，不需要重新生成网页、安装 npm 依赖或部署到公网。支持 macOS / Windows / Linux、Python 3.9+；数据来自当前运行机器，无法读取其他主机或云端会话。
 
 ## 启动并打开页面
 
-1. 将本文件所在目录记为 `SKILL_DIR`，检查 `python3 --version`。保留用户已有的 `CODEX_HOME`；不要把它改成安装目录。
-2. 在本机运行：
+1. 将本文件所在目录记为 `SKILL_DIR`，按当前操作系统选择 Python：macOS / Linux 检查 `python3 --version`；Windows 检查 `py -3 --version`，没有 `py` 时检查 `python --version`。必须为 3.9+。保留用户已有的 `CODEX_HOME`；不要把它改成安装目录。
+2. 在本机运行。macOS / Linux：
 
    ```bash
    python3 "$SKILL_DIR/scripts/launch.py" --no-open
    ```
+
+   Windows PowerShell（`$SKILL_DIR` 为本文件所在目录的实际路径）：
+
+   ```powershell
+   py -3 (Join-Path $SKILL_DIR 'scripts/launch.py') --no-open
+   ```
+
+   若检查到的是 `python`，用它替换 `py -3`。使用当前系统的路径和 Shell 语法，不在 PowerShell 中套用 Bash 的环境变量写法。Windows 原生和 WSL 的数据独立，跟随 Codex 实际运行环境启动。
 
    该命令启动后台服务或复用匹配的实例，输出含 `url` 的 JSON。端口优先使用 8766，被占用时自动分配；使用返回的 URL，不要猜端口或停止其他进程。
 3. 用当前环境提供的浏览器工具打开返回的 `url`。Codex 桌面可使用 `open_in_codex` 的 browser target；有浏览器工具时检查页面是否加载。其他 Agent 可使用自己的浏览器工具。没有浏览器工具时，再运行不带 `--no-open` 的同一命令，让系统浏览器打开，并将 URL 给用户。
@@ -37,6 +45,12 @@ description: 启动本地 Codex 技能图谱，在浏览器中查看本机 Skill
 
 ```bash
 python3 "$SKILL_DIR/scripts/launch.py" --stop
+```
+
+Windows PowerShell：
+
+```powershell
+py -3 (Join-Path $SKILL_DIR 'scripts/launch.py') --stop
 ```
 
 使用过自定义目录时，停止命令应带上相同参数。更新 Skill 前先停止服务，更新后重新启动；保留外部数据目录。不要只凭端口或 PID 文件杀进程。
