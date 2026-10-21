@@ -6,10 +6,12 @@ import argparse
 import errno
 from contextlib import contextmanager
 import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
 import re
+import secrets
 import shlex
 import signal
 import sqlite3
@@ -19,10 +21,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from socketserver import TCPServer
 from urllib.parse import urlparse, parse_qs
 from skill_trash import SkillTrash, TrashError
+from platform_support import path_key
+from windows_reads import powershell_reads
 
 APP = Path(__file__).resolve().parent
-VERSION = '1.0.1'
-DETECTOR_VERSION = "3"
+VERSION = '1.1.0'
+DETECTOR_VERSION = "4"
 SOURCES = {"builtin": "Codex 内置", "local": "本地 / 自建", "installed": "下载安装", "plugin": "插件技能", "project": "项目技能"}
 SKIP = {"node_modules", ".git", "__pycache__", ".venv", "venv", "references", "assets", "scripts", "tests", "test", "examples", "templates"}
 
@@ -37,7 +41,7 @@ class LocalHTTPServer(ThreadingHTTPServer):
 
 def read_json(path, default=None):
     try:
-        return json.loads(Path(path).read_text())
+        return json.loads(Path(path).read_text(encoding='utf-8'))
     except (OSError, ValueError):
         return default if default is not None else {}
 
@@ -84,7 +88,7 @@ def metadata(text):
 def skill_files(root):
     visited = set()
     for current, dirs, files in os.walk(root, followlinks=True):
-        resolved = str(Path(current).resolve())
+        resolved = path_key(Path(current).resolve())
         if resolved in visited:
             dirs[:] = []
             continue
@@ -107,14 +111,16 @@ class Catalog:
         self.project_paths = tuple(project_paths)
         skills, paths, aliases = {}, {}, {}
         lock = read_json(self.agents_home/".skill-lock.json").get("skills", {})
-        roots = [(self.home/"skills", "local", ""), (self.agents_home/"skills", "installed", ""), (Path("/etc/codex/skills"), "builtin", "system")]
+        roots = [(self.home/"skills", "local", ""), (self.agents_home/"skills", "installed", "")]
+        if os.name != 'nt':
+            roots.append((Path("/etc/codex/skills"), "builtin", "system"))
         roots += [(Path(p).expanduser(), "local", "extra") for p in self.extra]
         for raw in project_paths:
             p = Path(raw)
             if not p.is_absolute():
                 continue
             for ancestor in (p, *p.parents):
-                if ancestor == Path.home() or ancestor == Path("/"):
+                if ancestor == Path.home() or ancestor == ancestor.parent:
                     break
                 roots += [(ancestor/".agents/skills", "project", str(ancestor)), (ancestor/".codex/skills", "project", str(ancestor))]
         seen_roots, descriptors = set(), []
@@ -124,7 +130,7 @@ class Catalog:
             seen_roots.add(str(root.resolve()))
             descriptors.append({"path": str(root), "source": source})
             for file in skill_files(root):
-                rel = str(file.relative_to(root))
+                rel = file.relative_to(root).as_posix()
                 actual_source = "builtin" if rel.startswith(".system/") else source
                 logical = f"{actual_source}:{scope}:{rel}"
                 self._add(skills, paths, aliases, file, logical, actual_source, "", "", lock, root=root)
@@ -147,7 +153,7 @@ class Catalog:
                     if not root.is_dir():
                         continue
                     for file in skill_files(root):
-                        rel = str(file.relative_to(root))
+                        rel = file.relative_to(root).as_posix()
                         # Curated remote and old curated caches represent the same plugin.
                         market_key = marketplace.replace("-remote", "")
                         logical = f"plugin:{market_key}:{plugin}:{rel}"
@@ -155,7 +161,7 @@ class Catalog:
         # Merge symlink aliases pointing to an already inventoried skill file.
         canonical = {}
         for sid, skill in list(skills.items()):
-            real = str(Path(skill["path"]).resolve())
+            real = path_key(Path(skill["path"]).resolve())
             if real in canonical:
                 keep = canonical[real]
                 known_paths = {c['path'] for c in skills[keep]['copies']}
@@ -189,10 +195,10 @@ class Catalog:
                        "modifiedAt": int(stat.st_mtime*1000), "sourceUrl": origin.get("sourceUrl", ""),
                        "provenance": "安装记录" if origin else "插件目录" if plugin else "目录位置（无法据此判断作者）",
                        "copies": copies, "content": text, "bytes": stat.st_size}
-        paths[str(file)] = paths[str(file.resolve())] = sid
+        paths[path_key(file)] = paths[path_key(file.resolve())] = sid
         # Version-independent aliases allow historical read events to resolve after updates.
         if plugin:
-            m = re.search(r"/plugins/cache/[^/]+/([^/]+)/[^/]+/(.*)$", str(file))
+            m = re.search(r"/plugins/cache/[^/]+/([^/]+)/[^/]+/(.*)$", path_key(file).replace('\\', '/'))
             if m:
                 aliases[f"plugin:{m[1]}:{m[2]}"] = sid
 
@@ -200,16 +206,16 @@ class Catalog:
         path = os.path.expanduser(raw.strip('"\''))
         if not os.path.isabs(path) and cwd:
             path = os.path.normpath(os.path.join(cwd, path))
-        if path in self.paths:
-            return self.paths[path]
+        if path_key(path) in self.paths:
+            return self.paths[path_key(path)]
         if os.path.isabs(path):
             try:
-                canonical = str(Path(path).resolve())
+                canonical = path_key(Path(path).resolve())
                 if canonical in self.paths:
                     return self.paths[canonical]
             except (OSError, RuntimeError):
                 pass
-        m = re.search(r"/plugins/cache/[^/]+/([^/]+)/[^/]+/(.*)$", path)
+        m = re.search(r"/plugins/cache/[^/]+/([^/]+)/[^/]+/(.*)$", path_key(path).replace('\\', '/'))
         if m:
             return self.aliases.get(f"plugin:{m[1]}:{m[2]}")
         return None
@@ -219,11 +225,20 @@ def observed_reads(command, actions, cwd, catalog):
     """Only explicit file reads. Never search tool output, chat text or patch bodies."""
     found = {}
     for action in actions or []:
-        if action.get("type") == "read" and str(action.get("path", "")).endswith("SKILL.md"):
+        if action.get("type") == "read" and str(action.get("path", "")).lower().endswith("skill.md"):
             path = action["path"]
             sid = catalog.resolve(path, cwd)
             if sid:
                 found[sid] = {"path": path, "method": "文件读取"}
+    # Bash wrappers remain POSIX even on Windows (for example Git Bash).
+    posix_wrapper = bool(re.match(r'^(?:\S*/)?(?:bash|zsh|sh)\s', command))
+    windows_paths = None if posix_wrapper else powershell_reads(command)
+    if windows_paths is not None:
+        for path in windows_paths:
+            sid = catalog.resolve(path, cwd)
+            if sid:
+                found[sid] = {'path': path, 'method': '文件读取'}
+        return found
     # commandActions is authoritative when it classified a read. Fallback is for
     # compound shell calls whose actions are marked unknown by the Codex parser.
     # Strip heredoc bodies to avoid interpreting source code / patch content as reads.
@@ -552,6 +567,14 @@ def make_handler(atlas):
                 if not isinstance(body, dict):
                     raise ValueError()
                 route = urlparse(self.path).path
+                if route == '/api/shutdown':
+                    expected = getattr(atlas, 'shutdown_token', '')
+                    token = body.get('token')
+                    if not expected or not isinstance(token, str) or not hmac.compare_digest(token.encode('utf-8'), expected.encode('utf-8')):
+                        return self.send({'error': 'Invalid shutdown token'}, code=403)
+                    self.send({'status': 'stopping'})
+                    threading.Thread(target=self.server.shutdown, daemon=True).start()
+                    return
                 if route == '/api/skill/batch-deletion-plan':
                     return self.send(atlas.batch_deletion_plan(body.get('ids')))
                 if route == '/api/skill/batch-delete':
@@ -605,6 +628,7 @@ def main():
         return
     atlas = Atlas(args.codex_home, args.agents_home, args.skills_root, cache_dir=data_dir)
     atlas.instance_key = args.instance_key
+    atlas.shutdown_token = secrets.token_hex(32)
     try:
         server = LocalHTTPServer(("127.0.0.1", args.port), make_handler(atlas))
     except OSError as exc:
@@ -614,11 +638,12 @@ def main():
     url = f'http://127.0.0.1:{server.server_port}'
     if args.ready_file:
         temporary = args.ready_file.with_suffix('.tmp')
-        temporary.write_text(json.dumps({'url': url, 'pid': os.getpid(), 'instanceKey': args.instance_key}))
+        temporary.write_text(json.dumps({'url': url, 'pid': os.getpid(), 'instanceKey': args.instance_key,
+                                         'shutdownToken': atlas.shutdown_token}), encoding='utf-8')
         temporary.replace(args.ready_file)
     worker = threading.Thread(target=atlas.run, daemon=True)
     worker.start()
-    print(f"Skill Atlas → {url}", flush=True)
+    print(f"Skill Atlas -> {url}", flush=True)
     def stop_server(signum, frame):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, stop_server)
@@ -628,8 +653,10 @@ def main():
         pass
     finally:
         atlas.stop.set()
-        server.server_close()
         worker.join(5)
+        server.server_close()
+        if args.ready_file and read_json(args.ready_file).get('shutdownToken') == atlas.shutdown_token:
+            args.ready_file.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ PATTERNS = {
 
 
 def manifest_files():
-    manifest = json.loads((ROOT/'release-files.json').read_text())
+    manifest = json.loads((ROOT/'release-files.json').read_text(encoding='utf-8'))
     package = manifest['skillFiles']
     repo = manifest['repositoryFiles'] + [SKILL_ROOT+p for p in package]
     for name in repo + package:

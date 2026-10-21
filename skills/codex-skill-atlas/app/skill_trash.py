@@ -1,7 +1,6 @@
 """Confirmed, recoverable removal of catalogued skill directories only."""
 import hashlib
 from contextlib import contextmanager
-import fcntl
 from functools import wraps
 import json
 import math
@@ -11,6 +10,7 @@ import secrets
 import shutil
 import threading
 import time
+from platform_support import file_lock, is_link
 
 RETENTION_DAYS = 30
 RETENTION_MS = RETENTION_DAYS * 86400 * 1000
@@ -38,14 +38,14 @@ def fingerprint(paths):
     records = []
     for target in paths:
         entries = [target]
-        if target.is_dir() and not target.is_symlink():
+        if target.is_dir() and not is_link(target):
             for current, dirs, files in os.walk(target, followlinks=False):
                 entries.extend(Path(current)/name for name in sorted(dirs+files))
         for entry in entries:
             stat = entry.lstat()
             records.append((str(entry), stat.st_dev, stat.st_ino, stat.st_mode,
                             stat.st_size, stat.st_mtime_ns,
-                            os.readlink(entry) if entry.is_symlink() else None))
+                            os.readlink(entry) if is_link(entry) else None))
     return hashlib.sha256(json.dumps(sorted(records)).encode()).hexdigest()
 
 
@@ -60,25 +60,20 @@ class SkillTrash:
     def _exclusive(self):
         # Also serialize CLI restores against the server's automatic cleanup.
         with self.lock:
-            if self.directory.is_symlink():
+            if is_link(self.directory):
                 raise TrashError('回收目录不能是符号链接，请检查回收目录。')
             self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
-            fd = os.open(self.directory/'.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
-            with os.fdopen(fd, 'a') as file:
-                fcntl.flock(file, fcntl.LOCK_EX)
-                try:
-                    yield
-                finally:
-                    fcntl.flock(file, fcntl.LOCK_UN)
+            with file_lock(self.directory/'.lock'):
+                yield
 
     def _read(self, trash_id):
         if not isinstance(trash_id, str) or len(trash_id) != 32 or any(c not in '0123456789abcdef' for c in trash_id):
             raise TrashError('回收记录不存在。', 404)
         entry = self.directory/trash_id
         try:
-            if entry.is_symlink() or not entry.is_dir() or (entry/'manifest.json').is_symlink():
+            if is_link(entry) or not entry.is_dir() or is_link((entry/'manifest.json')):
                 raise ValueError()
-            manifest = json.loads((entry/'manifest.json').read_text())
+            manifest = json.loads((entry/'manifest.json').read_text(encoding='utf-8'))
             if not isinstance(manifest, dict) or manifest.get('id') != trash_id or not isinstance(manifest.get('name'), str):
                 raise ValueError()
             created = manifest.get('createdAt')
@@ -144,8 +139,11 @@ class SkillTrash:
         for child in entry.iterdir():
             if child.name in {'manifest.json', 'manifest.tmp'}:
                 continue
-            if child.is_symlink() or not child.is_dir():
-                child.unlink()
+            if is_link(child) or not child.is_dir():
+                if is_link(child) and child.is_dir() and not child.is_symlink():
+                    child.rmdir()
+                else:
+                    child.unlink()
             else:
                 shutil.rmtree(child)
         (entry/'manifest.tmp').unlink(missing_ok=True)
@@ -171,9 +169,9 @@ class SkillTrash:
             for ancestor in file.parent.parents:
                 if ancestor == root:
                     break
-                if within(ancestor, root) and ancestor.is_symlink():
+                if within(ancestor, root) and is_link(ancestor):
                     raise TrashError('这项技能位于共享符号链接目录，无法单独移除该目录。')
-            target = file if file.parent == root or file.is_symlink() else file.parent
+            target = file if file.parent == root or is_link(file) else file.parent
             if any(within(protected, target.resolve()) for protected in self.protected_paths):
                 raise TrashError('不能从正在运行的看板中删除看板自身，请先停止服务后手动卸载。')
             if within(self.directory, target):
@@ -186,7 +184,7 @@ class SkillTrash:
         return {
             'skillId': sid, 'name': skill['name'],
             'source': skill['source'],
-            'paths': [{'path': str(p), 'kind': 'link' if p.is_symlink() else 'directory' if p.is_dir() else 'file'} for p in targets],
+            'paths': [{'path': str(p), 'kind': 'link' if is_link(p) else 'directory' if p.is_dir() else 'file'} for p in targets],
             'affectedSkills': [{'id': s['id'], 'name': s['name']} for s in affected],
             'managed': skill['source'] in {'builtin', 'plugin'},
             'signature': fingerprint(targets),
@@ -309,7 +307,7 @@ class SkillTrash:
     @staticmethod
     def _save(entry, manifest):
         temp = entry/'manifest.tmp'
-        temp.write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
+        temp.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding='utf-8')
         os.replace(temp, entry/'manifest.json')
 
     def _rollback(self, entry, manifest, moved, restoring):

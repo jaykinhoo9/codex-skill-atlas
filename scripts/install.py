@@ -18,7 +18,7 @@ def main():
     if os.path.lexists(dest):
         parser.exit(1, 'Destination already exists; no files changed. Stop the service and back up the existing installation before updating.\n')
     source = ROOT/'skills/codex-skill-atlas'
-    manifest = json.loads((ROOT/'release-files.json').read_text())
+    manifest = json.loads((ROOT/'release-files.json').read_text(encoding='utf-8'))
     dest.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix='.skill-atlas-install-', dir=dest.parent))
     try:

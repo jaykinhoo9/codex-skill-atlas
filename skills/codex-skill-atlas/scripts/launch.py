@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Launch or reuse the local Skill Atlas and open its browser UI."""
 import argparse
-import fcntl
 import hashlib
 import json
 import os
@@ -11,16 +10,19 @@ import subprocess
 import sys
 import time
 from urllib.parse import urlparse
-from urllib.request import build_opener, ProxyHandler
+from urllib.request import build_opener, ProxyHandler, Request
 import webbrowser
 
 SKILL = Path(__file__).resolve().parents[1]
 APP = SKILL/'app'
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(APP))
+from platform_support import background_options, file_lock
 
 
 def read_json(path):
     try:
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding='utf-8'))
     except (OSError, ValueError):
         return {}
 
@@ -63,15 +65,26 @@ def main():
     os.umask(0o077)
     data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     metadata = data_dir/'server.json'
-    with (data_dir/'launch.lock').open('a') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+    with file_lock(data_dir/'launch.lock'):
         record = read_json(metadata)
         running = healthy(record, key)
         if args.stop:
             if running:
-                os.kill(record['pid'], signal.SIGTERM)
-                for _ in range(50):
-                    if not healthy(record, key):
+                token = record.get('shutdownToken')
+                if token:
+                    request = Request(record['url']+'/api/shutdown',
+                                      data=json.dumps({'token': token}).encode(),
+                                      headers={'Content-Type': 'application/json', 'Origin': record['url']})
+                    with build_opener(ProxyHandler({})).open(request, timeout=3) as response:
+                        response.read()
+                elif os.name != 'nt':
+                    # Older POSIX versions did not yet have the authenticated stop endpoint.
+                    os.kill(record['pid'], signal.SIGTERM)
+                else:
+                    parser.exit(1, 'This instance does not support safe shutdown.\n')
+                deadline = time.monotonic()+15
+                while time.monotonic() < deadline:
+                    if (not token or not metadata.exists()) and not healthy(record, key):
                         break
                     time.sleep(.1)
                 else:
@@ -90,7 +103,8 @@ def main():
                 command += ['--skills-root', root]
             with (data_dir/'server.log').open('ab') as log:
                 process = subprocess.Popen(command, cwd=APP, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-                                           start_new_session=True, env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'})
+                                           **background_options(),
+                                           env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1', 'PYTHONUTF8': '1'})
             deadline = time.monotonic()+15
             while time.monotonic() < deadline:
                 record = read_json(metadata)
