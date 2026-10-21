@@ -1,6 +1,9 @@
 'use strict';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
+const macKeyboard = /Mac|iPhone|iPad/i.test(navigator.userAgentData?.platform || navigator.platform);
+$('.search kbd').textContent = macKeyboard ? '⌘ K' : 'Ctrl K';
+$('#search').setAttribute('aria-keyshortcuts', macKeyboard ? 'Meta+K' : 'Control+K');
 const DEFAULT_COLORS = {builtin:'#568aaf',local:'#49a580',installed:'#bc995e',plugin:'#9485b8',project:'#bc7b88'};
 const COLORS = SourcePalette.load(DEFAULT_COLORS);
 let palette=null;
