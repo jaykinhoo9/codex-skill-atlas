@@ -14,6 +14,7 @@ import re
 import secrets
 import shlex
 import signal
+import socket
 import sqlite3
 import threading
 import time
@@ -32,9 +33,14 @@ SKIP = {"node_modules", ".git", "__pycache__", ".venv", "venv", "references", "a
 
 
 class LocalHTTPServer(ThreadingHTTPServer):
+    # SO_REUSEADDR on Windows can share an already-bound port, unlike POSIX.
+    allow_reuse_address = os.name != 'nt'
+
     def server_bind(self):
         # HTTPServer resolves the host's FQDN while binding. A loopback-only
         # dashboard needs no DNS, which can stall on offline or CI machines.
+        if os.name == 'nt':
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
         TCPServer.server_bind(self)
         self.server_name, self.server_port = self.server_address[:2]
 
@@ -632,7 +638,9 @@ def main():
     try:
         server = LocalHTTPServer(("127.0.0.1", args.port), make_handler(atlas))
     except OSError as exc:
-        if not args.fallback_port or exc.errno != errno.EADDRINUSE:
+        unavailable = exc.errno == errno.EADDRINUSE or (
+            os.name == 'nt' and getattr(exc, 'winerror', None) in {10013, 10048})
+        if not args.fallback_port or not unavailable:
             raise
         server = LocalHTTPServer(("127.0.0.1", 0), make_handler(atlas))
     url = f'http://127.0.0.1:{server.server_port}'
