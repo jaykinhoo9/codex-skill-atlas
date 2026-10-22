@@ -20,6 +20,7 @@
     ".gitignore",
     ".github/workflows/ci.yml",
     "README.md",
+    "docs/usage.md",
     "LICENSE",
     "release-files.json",
     "scripts/install.py",
